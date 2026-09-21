@@ -301,7 +301,26 @@ body.high-contrast .site-footer { background: #000; border-top: 2px solid var(--
 .hidden { display: none !important; }
 
 @media (max-width: 640px) {
-  .hero h1 { font-size: 1.7rem; }
+  body { font-size: 16px; }
+  .hero { padding: 40px 0; }
+  .hero h1 { font-size: 1.55rem; }
+  .hero p { font-size: 1.02rem; margin-bottom: 20px; }
+  .hero .btn-row .btn { flex: 1 1 100%; }   /* 히어로 버튼 세로 꽉차게 */
   .main-nav { width: 100%; }
+  section { padding: 32px 0; }
+  .section-title { font-size: 1.3rem; }
+
+  /* 도움 타일: 모바일에서 2열로 압축 (세로 길이 절반) */
+  #need-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  #need-grid .tile { min-height: 0; padding: 14px 12px; }
+  #need-grid .tile .emoji { font-size: 1.5rem; }
+  #need-grid .tile strong { font-size: .98rem; }
+  #need-grid .tile span.desc { font-size: .82rem; }
+
   .stage-detail dl { grid-template-columns: 1fr; }
+}
+
+/* 아주 좁은 화면에서는 도움 타일 설명 숨겨 더 압축 */
+@media (max-width: 380px) {
+  #need-grid .tile span.desc { display: none; }
 }
