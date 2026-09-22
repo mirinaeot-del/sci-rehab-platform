@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>교육자료 관리 | 척수손상 재활 플랫폼</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="assets/styles.css" />
+  <style>
+    /* 관리자 화면 전용 스타일 */
+    .admin-lock { max-width: 420px; margin: 8vh auto; }
+    .admin-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 16px 0; }
+    .admin-toolbar .spacer { flex: 1; }
+    table.admin-table { width: 100%; border-collapse: collapse; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; }
+    table.admin-table th, table.admin-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--color-border); vertical-align: top; font-size: .92rem; }
+    table.admin-table th { background: var(--color-primary-soft); color: var(--color-primary-dark); font-size: .85rem; }
+    table.admin-table tr:last-child td { border-bottom: none; }
+    .row-actions { display: flex; gap: 6px; white-space: nowrap; }
+    .btn-sm { min-height: 34px; padding: 6px 12px; font-size: .88rem; border-radius: 8px; }
+    .btn-danger { background: var(--color-danger-bg); color: #8f261c; border: 1px solid var(--color-danger-border); }
+    .btn-danger:hover { background: #f9dcdc; }
+    .btn-ghost { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); }
+    .btn-ghost:hover { background: var(--color-bg); }
+    /* 편집 폼 */
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+    .field label { display: block; font-weight: 700; margin-bottom: 6px; font-size: .92rem; }
+    .field input[type=text], .field textarea, .field select {
+      width: 100%; min-height: 42px; padding: 9px 12px; font-size: .95rem;
+      border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-family: inherit;
+    }
+    .field textarea { min-height: 80px; resize: vertical; }
+    .field .hint { color: var(--color-muted); font-size: .82rem; margin-top: 4px; }
+    .checks { display: flex; flex-wrap: wrap; gap: 6px; }
+    .checks label { display: inline-flex; align-items: center; gap: 5px; font-weight: 500; font-size: .9rem;
+      border: 1px solid var(--color-border); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+    .checks input { accent-color: var(--color-primary); }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(15,30,45,.5); display: grid; place-items: start center; padding: 3vh 16px; overflow: auto; z-index: 60; }
+    .modal { background: var(--color-surface); border-radius: 14px; max-width: 900px; width: 100%; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+    .modal h2 { margin-top: 0; }
+    .dirty-badge { background: var(--color-warn-bg); color: #7a4d0f; border: 1px solid var(--color-warn-border); border-radius: 999px; padding: 4px 12px; font-size: .82rem; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main id="main">
+    <!-- 비밀번호 잠금 -->
+    <section id="lock-screen">
+      <div class="container">
+        <div class="admin-lock card">
+          <h1 style="margin-top:0;font-size:1.4rem;">🔒 교육자료 관리</h1>
+          <p class="section-sub">관리자 비밀번호를 입력하세요.</p>
+          <div class="field">
+            <label for="pw" class="sr-only">비밀번호</label>
+            <input type="password" id="pw" class="search-box" placeholder="비밀번호" autocomplete="current-password" />
+          </div>
+          <p id="pw-error" class="notice danger hidden" style="margin-top:12px;">비밀번호가 올바르지 않습니다.</p>
+          <div style="margin-top:14px;">
+            <button type="button" class="btn btn-solid" id="unlock-btn" style="width:100%;">잠금 해제</button>
+          </div>
+          <p class="hint" style="color:var(--color-muted);font-size:.82rem;margin-top:14px;">
+            이 잠금은 실수 방지용 간단 보호입니다. 실제 콘텐츠 반영은 다운로드한 파일을 GitHub에 올릴 때 이루어집니다.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 관리자 본문 -->
+    <section id="admin-screen" class="hidden">
+      <div class="page-head" style="padding-bottom:0;">
+        <div class="container">
+          <p class="breadcrumb"><a href="index.html">홈</a> › 교육자료 관리</p>
+          <h1>교육자료 관리</h1>
+          <p class="section-sub">교육자료를 추가·수정·삭제한 뒤 <strong>content.json 내려받기</strong>로 파일을 저장하고, GitHub에 올리면 사이트에 반영됩니다.</p>
+        </div>
+      </div>
+
+      <div class="container">
+        <div class="admin-toolbar">
+          <button type="button" class="btn btn-solid" id="add-btn">+ 새 교육자료</button>
+          <span id="dirty-indicator" class="dirty-badge hidden">저장 안 된 변경 있음</span>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-ghost btn-sm" id="reload-btn">원본 다시 불러오기</button>
+          <button type="button" class="btn btn-solid" id="download-btn">⬇ content.json 내려받기</button>
+        </div>
+
+        <div class="notice info" id="count-info"></div>
+
+        <div style="overflow-x:auto;">
+          <table class="admin-table" aria-label="교육자료 목록">
+            <thead>
+              <tr>
+                <th>ID</th><th>제목</th><th>대상</th><th>영역</th><th>검토</th><th>공개</th><th>수정일</th><th>관리</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+
+        <div class="notice warn" style="margin-top:20px;">
+          <strong>반영 방법</strong>
+          ① 편집 후 <b>content.json 내려받기</b> 클릭 → ② 내려받은 파일을 GitHub 저장소의 <code>data/content.json</code>에 업로드(교체)하고 Commit → ③ 1~2분 뒤 사이트 반영.
+          편집 내용은 이 브라우저에 자동 임시저장되어 새로고침해도 유지됩니다.
+        </div>
+      </div>
+    </section>
+
+    <!-- 편집 모달 -->
+    <div id="modal-root"></div>
+  </main>
+
+  <script src="assets/app.js"></script>
+  <script>
+    (function () {
+      SCIChrome.init("admin.html");
+      const { AREA_LABELS, AUDIENCE_LABELS, TYPE_LABELS, STATUS_LABELS } = SCILabels;
+
+      // ===== 설정 =====
+      const ADMIN_PASSWORD = "sci-admin";   // ← 실제 운영 시 이 값을 바꿔서 사용하세요
+      const LS_KEY = "sci-admin-content-draft";
+
+      const AREA_OPTIONS = Object.entries(AREA_LABELS);
+      const AUDIENCE_OPTIONS = Object.entries(AUDIENCE_LABELS);
+      const TYPE_OPTIONS = Object.entries(TYPE_LABELS);
+      const STATUS_OPTIONS = Object.entries(STATUS_LABELS);
+      const LEVEL_OPTIONS = [["basic", "기본"], ["intermediate", "중급"], ["advanced", "고급"]];
+      const VISIBILITY_OPTIONS = [["public", "공개"], ["restricted", "제한"], ["hidden", "숨김"]];
+
+      // 손상수준·단계 옵션은 데이터에서 로드
+      let LEVEL_TAGS = [["all", "전체"]];
+      let STAGE_TAGS = [["all", "전체"]];
+
+      let db = null;        // 전체 content.json 객체 (_schema + items)
+      let dirty = false;
+
+      // ===== 잠금 =====
+      const lockScreen = document.getElementById("lock-screen");
+      const adminScreen = document.getElementById("admin-screen");
+      const pw = document.getElementById("pw");
+      const pwError = document.getElementById("pw-error");
+
+      function tryUnlock() {
+        if (pw.value === ADMIN_PASSWORD) {
+          sessionStorage.setItem("sci-admin-unlocked", "1");
+          showAdmin();
+        } else {
+          pwError.classList.remove("hidden");
+        }
+      }
+      document.getElementById("unlock-btn").addEventListener("click", tryUnlock);
+      pw.addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
+
+      async function showAdmin() {
+        lockScreen.classList.add("hidden");
+        adminScreen.classList.remove("hidden");
+        await bootstrap();
+      }
+
+      // ===== 데이터 로드 =====
+      async function bootstrap() {
+        // 태그 옵션 로드
+        try {
+          const inj = await SCIStore.getInjuryLevels();
+          LEVEL_TAGS = [["all", "전체"], ...inj.levels.map((l) => [l.id, l.label])];
+          const stages = await SCIStore.getJourney();
+          STAGE_TAGS = [["all", "전체"], ...stages.map((s) => [s.id, s.label])];
+        } catch (e) { /* 무시: 태그 옵션 없이도 편집 가능 */ }
+
+        // 임시저장 우선, 없으면 원본 파일
+        const draft = localStorage.getItem(LS_KEY);
+        if (draft) {
+          try { db = JSON.parse(draft); dirty = true; } catch (e) { db = null; }
+        }
+        if (!db) { await loadOriginal(); }
+        render();
+      }
+
+      async function loadOriginal() {
+        const res = await fetch("data/content.json", { cache: "no-cache" });
+        db = await res.json();
+        dirty = false;
+        localStorage.removeItem(LS_KEY);
+      }
+
+      function persist() {
+        dirty = true;
+        localStorage.setItem(LS_KEY, JSON.stringify(db));
+        updateDirty();
+        render();
+      }
+      function updateDirty() {
+        document.getElementById("dirty-indicator").classList.toggle("hidden", !dirty);
+      }
+
+      // ===== 목록 렌더 =====
+      function render() {
+        updateDirty();
+        const tbody = document.getElementById("rows");
+        tbody.innerHTML = "";
+        const items = db.items || [];
+        document.getElementById("count-info").textContent = `총 ${items.length}건의 교육자료`;
+        items.forEach((c, idx) => {
+          const tr = el("tr", {}, [
+            el("td", {}, c.content_id || ""),
+            el("td", {}, el("strong", {}, c.title || "(제목 없음)")),
+            el("td", {}, (c.audience || []).map((a) => AUDIENCE_LABELS[a] || a).join(", ")),
+            el("td", {}, (c.area || []).map((a) => AREA_LABELS[a] || a).join(", ")),
+            el("td", {}, STATUS_LABELS[c.review_status] || c.review_status || ""),
+            el("td", {}, (VISIBILITY_OPTIONS.find((v) => v[0] === c.visibility) || [null, c.visibility])[1] || ""),
+            el("td", {}, c.updated_at || ""),
+            el("td", {}, el("div", { class: "row-actions" }, [
+              el("button", { class: "btn btn-ghost btn-sm", type: "button", onclick: () => openEditor(idx) }, "수정"),
+              el("button", { class: "btn btn-danger btn-sm", type: "button", onclick: () => removeItem(idx) }, "삭제"),
+            ])),
+          ]);
+          tbody.appendChild(tr);
+        });
+      }
+
+      function removeItem(idx) {
+        const c = db.items[idx];
+        if (!confirm(`'${c.title || c.content_id}' 자료를 삭제할까요?`)) return;
+        db.items.splice(idx, 1);
+        persist();
+      }
+
+      // ===== 편집 모달 =====
+      function nextId() {
+        const nums = (db.items || [])
+          .map((c) => /^SCI(\d+)$/.exec(c.content_id || ""))
+          .filter(Boolean).map((m) => parseInt(m[1], 10));
+        const max = nums.length ? Math.max(...nums) : 0;
+        return "SCI" + String(max + 1).padStart(3, "0");
+      }
+
+      function blankItem() {
+        const today = new Date().toISOString().slice(0, 10);
+        return {
+          content_id: nextId(), title: "", audience: [], injury_level: [], stage: [],
+          area: [], level: "basic", type: "guide", description: "", video_url: "",
+          document_url: "", related: [], author: "", reviewer: "",
+          review_status: "draft", review_due_date: "", updated_at: today, visibility: "public",
+        };
+      }
+
+      function checkGroup(name, options, selected) {
+        return el("div", { class: "checks" }, options.map(([val, label]) =>
+          el("label", {}, [
+            el("input", { type: "checkbox", value: val, ...(selected.includes(val) ? { checked: "checked" } : {}), "data-group": name }),
+            document.createTextNode(label),
+          ])
+        ));
+      }
+      function selectField(name, options, value) {
+        return el("select", { "data-field": name },
+          options.map(([val, label]) => el("option", { value: val, ...(val === value ? { selected: "selected" } : {}) }, label))
+        );
+      }
+      function textField(name, value, placeholder) {
+        return el("input", { type: "text", "data-field": name, value: value || "", placeholder: placeholder || "" });
+      }
+
+      function openEditor(idx) {
+        const isNew = idx == null;
+        const item = isNew ? blankItem() : JSON.parse(JSON.stringify(db.items[idx]));
+
+        const form = el("div", { class: "form-grid" }, [
+          el("div", { class: "field", style: "grid-column:1/-1;" }, [
+            el("label", {}, "제목 *"), textField("title", item.title, "예: C6 손상에서의 식사 방법"),
+          ]),
+          el("div", { class: "field", style: "grid-column:1/-1;" }, [
+            el("label", {}, "설명"),
+            el("textarea", { "data-field": "description", placeholder: "자료 요약 설명" }, item.description || ""),
+          ]),
+          el("div", { class: "field" }, [ el("label", {}, "대상"), checkGroup("audience", AUDIENCE_OPTIONS, item.audience) ]),
+          el("div", { class: "field" }, [ el("label", {}, "영역"), checkGroup("area", AREA_OPTIONS, item.area) ]),
+          el("div", { class: "field" }, [ el("label", {}, "손상수준"), checkGroup("injury_level", LEVEL_TAGS, item.injury_level) ]),
+          el("div", { class: "field" }, [ el("label", {}, "재활단계"), checkGroup("stage", STAGE_TAGS, item.stage) ]),
+          el("div", { class: "field" }, [ el("label", {}, "유형"), selectField("type", TYPE_OPTIONS, item.type) ]),
+          el("div", { class: "field" }, [ el("label", {}, "난이도"), selectField("level", LEVEL_OPTIONS, item.level) ]),
+          el("div", { class: "field" }, [ el("label", {}, "검토 상태"), selectField("review_status", STATUS_OPTIONS, item.review_status) ]),
+          el("div", { class: "field" }, [ el("label", {}, "공개 상태"), selectField("visibility", VISIBILITY_OPTIONS, item.visibility) ]),
+          el("div", { class: "field" }, [ el("label", {}, "영상 URL"), textField("video_url", item.video_url) ]),
+          el("div", { class: "field" }, [ el("label", {}, "문서 URL"), textField("document_url", item.document_url) ]),
+          el("div", { class: "field" }, [ el("label", {}, "작성자"), textField("author", item.author) ]),
+          el("div", { class: "field" }, [ el("label", {}, "검토자"), textField("reviewer", item.reviewer) ]),
+          el("div", { class: "field" }, [
+            el("label", {}, "재검토 예정일"), textField("review_due_date", item.review_due_date, "YYYY-MM-DD"),
+            el("div", { class: "hint" }, "의료정보 최신성 관리용 (선택)"),
+          ]),
+          el("div", { class: "field" }, [
+            el("label", {}, "관련 자료 ID"), textField("related", (item.related || []).join(", "), "예: SCI002, SCI003"),
+            el("div", { class: "hint" }, "쉼표로 구분"),
+          ]),
+          el("div", { class: "field" }, [
+            el("label", {}, "ID"), textField("content_id", item.content_id),
+            el("div", { class: "hint" }, "고유해야 합니다 (자동 생성됨)"),
+          ]),
+          el("div", { class: "field" }, [
+            el("label", {}, "수정일"), textField("updated_at", item.updated_at, "YYYY-MM-DD"),
+          ]),
+        ]);
+
+        const modal = el("div", { class: "modal-backdrop", role: "dialog", "aria-modal": "true" },
+          el("div", { class: "modal" }, [
+            el("h2", {}, isNew ? "새 교육자료 추가" : "교육자료 수정"),
+            form,
+            el("p", { id: "modal-error", class: "notice danger hidden", style: "margin-top:14px;" }, ""),
+            el("div", { class: "btn-row", style: "margin-top:20px;" }, [
+              el("button", { class: "btn btn-solid", type: "button", onclick: () => save(idx, form, modal) }, "저장"),
+              el("button", { class: "btn btn-ghost", type: "button", onclick: () => closeModal(modal) }, "취소"),
+            ]),
+          ])
+        );
+        document.getElementById("modal-root").appendChild(modal);
+        modal.querySelector('input[data-field="title"]').focus();
+      }
+
+      function closeModal(modal) { modal.remove(); }
+
+      function collect(form) {
+        const out = {};
+        // 텍스트/셀렉트/텍스트영역
+        form.querySelectorAll("[data-field]").forEach((elm) => {
+          out[elm.getAttribute("data-field")] = elm.value.trim();
+        });
+        // 체크박스 그룹
+        ["audience", "area", "injury_level", "stage"].forEach((g) => {
+          out[g] = Array.from(form.querySelectorAll(`input[data-group="${g}"]:checked`)).map((c) => c.value);
+        });
+        // related 배열화
+        out.related = out.related ? out.related.split(",").map((s) => s.trim()).filter(Boolean) : [];
+        return out;
+      }
+
+      function save(idx, form, modal) {
+        const data = collect(form);
+        const err = modal.querySelector("#modal-error");
+        // 검증
+        if (!data.title) { err.textContent = "제목은 필수입니다."; err.classList.remove("hidden"); return; }
+        if (!data.content_id) { err.textContent = "ID는 필수입니다."; err.classList.remove("hidden"); return; }
+        const dupIdx = (db.items || []).findIndex((c) => c.content_id === data.content_id);
+        if (dupIdx !== -1 && dupIdx !== idx) { err.textContent = `ID가 중복됩니다: ${data.content_id}`; err.classList.remove("hidden"); return; }
+
+        if (idx == null) db.items.push(data);
+        else db.items[idx] = data;
+        closeModal(modal);
+        persist();
+      }
+
+      document.getElementById("add-btn").addEventListener("click", () => openEditor(null));
+
+      // ===== 다운로드 =====
+      document.getElementById("download-btn").addEventListener("click", () => {
+        const json = JSON.stringify(db, null, 2) + "\n";
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = el("a", { href: url, download: "content.json" });
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      });
+
+      // ===== 원본 다시 불러오기 =====
+      document.getElementById("reload-btn").addEventListener("click", async () => {
+        if (dirty && !confirm("저장하지 않은 편집 내용이 사라집니다. 원본을 다시 불러올까요?")) return;
+        await loadOriginal();
+        render();
+      });
+
+      // 세션 내 재진입 시 잠금 해제 유지
+      if (sessionStorage.getItem("sci-admin-unlocked") === "1") { showAdmin(); }
+    })();
+  </script>
+</body>
+</html>
